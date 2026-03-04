@@ -1,0 +1,22 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/app/__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets & config
+backend/.env
+
+# Runtime data
+backend/uploads/
+backend/rag_store.json
+backend/links.json
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db

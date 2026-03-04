@@ -1,0 +1,51 @@
+/* Gauntlet AI – Black & Metallic Gold palette */
+:root {
+  --gauntlet-black: #0a0a0a;
+  --gauntlet-black-soft: #141414;
+  --gauntlet-black-muted: #1a1a1a;
+  --gauntlet-gold: #c5b358;
+  --gauntlet-gold-light: #e5d48b;
+  --gauntlet-gold-muted: #a89850;
+  --gauntlet-gold-gradient: linear-gradient(135deg, #a89850 0%, #d4af37 25%, #f0e68c 50%, #c5b358 75%, #a89850 100%);
+  --gauntlet-white: #f5f5f5;
+  --gauntlet-gray: #888;
+  --gauntlet-border: #2a2a2a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--gauntlet-black);
+  color: var(--gauntlet-white);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--gauntlet-gold);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--gauntlet-gold-light);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+input, textarea {
+  font-family: inherit;
+}
