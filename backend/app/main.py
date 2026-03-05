@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -304,5 +305,26 @@ def reindex_document_by_id(req: ReindexRequest):
 
 app.include_router(api, prefix="/api")
 
-if STATIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+INDEX_HTML = STATIC_DIR / "index.html"
+
+
+def _serve_index():
+    if INDEX_HTML.exists():
+        return FileResponse(INDEX_HTML)
+    return {"detail": "Static files not built. Run: cd frontend && npm run build"}
+
+
+@app.get("/")
+def serve_root():
+    return _serve_index()
+
+
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    # Serve static file if it exists (e.g. /assets/foo.js)
+    static_file = STATIC_DIR / full_path
+    if static_file.is_file():
+        return FileResponse(static_file)
+    return _serve_index()
