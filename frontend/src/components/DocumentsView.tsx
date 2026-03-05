@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 const API_BASE = '/api'
 
@@ -17,6 +17,7 @@ interface DocumentInfo {
   size?: number
   url?: string
   type?: 'file' | 'link' | 'manual'
+  uploading?: boolean
 }
 
 interface DocumentsViewProps {
@@ -40,6 +41,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
   const [manualText, setManualText] = useState('')
   const [ingesting, setIngesting] = useState(false)
   const [reindexingId, setReindexingId] = useState<string | null>(null)
+  const uploadAbortRef = useRef<AbortController | null>(null)
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -68,7 +70,18 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
       return
     }
 
+    const optimisticDoc: DocumentInfo = {
+      id: file.name,
+      name: file.name,
+      size: file.size,
+      type: 'file',
+      uploading: true,
+    }
+    setDocuments((prev) => [...prev, optimisticDoc])
     setUploading(true)
+    const ac = new AbortController()
+    uploadAbortRef.current = ac
+
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -76,15 +89,22 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         method: 'POST',
         headers: headers(),
         body: formData,
+        signal: ac.signal,
       })
       const data = await parseJsonResponse<{ detail?: string; warning?: string }>(res)
       if (!res.ok) throw new Error(data.detail || 'Upload failed')
       if (data.warning) alert(data.warning)
       await fetchDocuments()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed')
+      if ((err as Error).name === 'AbortError') {
+        setDocuments((prev) => prev.filter((d) => !(d.uploading && d.id === file.name)))
+      } else {
+        alert(err instanceof Error ? err.message : 'Upload failed')
+        setDocuments((prev) => prev.filter((d) => !(d.uploading && d.id === file.name)))
+      }
     } finally {
       setUploading(false)
+      uploadAbortRef.current = null
     }
   }
 
@@ -158,6 +178,11 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
   }
 
   const handleDelete = async (doc: DocumentInfo) => {
+    if (doc.uploading) {
+      uploadAbortRef.current?.abort()
+      setDocuments((prev) => prev.filter((d) => d.id !== doc.id || !d.uploading))
+      return
+    }
     const label = doc.type === 'link' ? doc.name : doc.id
     if (!confirm(`Delete "${label}"? This cannot be undone.`)) return
     try {
@@ -309,21 +334,28 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
               </span>
               <span className="doc-actions">
                 {doc.type !== 'manual' && (
-                  <button
-                    className="reindex-btn"
-                    onClick={() => handleReindex(doc)}
-                    disabled={reindexingId === doc.id}
-                    aria-label={`Reindex ${doc.name}`}
-                  >
-                    {reindexingId === doc.id ? (
-                      <>
-                        <span className="reindex-spinner" aria-hidden />
-                        Reindexing...
-                      </>
-                    ) : (
-                      'Reindex'
-                    )}
-                  </button>
+                  doc.uploading ? (
+                    <span className="reindex-spinner-wrap" aria-label="Uploading and ingesting">
+                      <span className="reindex-spinner" aria-hidden />
+                      Ingesting...
+                    </span>
+                  ) : (
+                    <button
+                      className="reindex-btn"
+                      onClick={() => handleReindex(doc)}
+                      disabled={reindexingId === doc.id}
+                      aria-label={`Reindex ${doc.name}`}
+                    >
+                      {reindexingId === doc.id ? (
+                        <>
+                          <span className="reindex-spinner" aria-hidden />
+                          Reindexing...
+                        </>
+                      ) : (
+                        'Reindex'
+                      )}
+                    </button>
+                  )
                 )}
                 <button
                   className="delete-btn"

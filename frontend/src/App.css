@@ -1,13 +1,19 @@
 /* BeccaBot App – Gauntlet AI theme */
 
 .app {
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* Header */
+/* Header – fixed at top */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex-shrink: 0;
   background: var(--gauntlet-black-soft);
   border-bottom: 2px solid var(--gauntlet-gold-muted);
   transition: background 0.2s, border-color 0.2s;
@@ -150,6 +156,7 @@
 .main {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   padding: 1.5rem;
   max-width: 900px;
   margin: 0 auto;
@@ -211,6 +218,21 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gauntlet-gold-muted) var(--gauntlet-black);
+}
+.messages::-webkit-scrollbar {
+  width: 8px;
+}
+.messages::-webkit-scrollbar-track {
+  background: var(--gauntlet-black);
+}
+.messages::-webkit-scrollbar-thumb {
+  background: var(--gauntlet-gold-muted);
+  border-radius: 4px;
+}
+.messages::-webkit-scrollbar-thumb:hover {
+  background: var(--gauntlet-gold);
 }
 
 .message-row {
@@ -336,11 +358,15 @@
 }
 
 .chat-input-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   flex-shrink: 0;
   display: flex;
   gap: 0.5rem;
   padding: 1rem;
   border-top: 1px solid var(--gauntlet-border);
+  background: var(--gauntlet-black-soft);
 }
 .chat-input {
   flex: 1;
@@ -562,6 +588,25 @@
   color: var(--gauntlet-white);
 }
 
+.documents-section {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gauntlet-gold-muted) var(--gauntlet-black);
+}
+.documents-section::-webkit-scrollbar {
+  width: 8px;
+}
+.documents-section::-webkit-scrollbar-track {
+  background: var(--gauntlet-black);
+}
+.documents-section::-webkit-scrollbar-thumb {
+  background: var(--gauntlet-gold-muted);
+  border-radius: 4px;
+}
+.documents-section::-webkit-scrollbar-thumb:hover {
+  background: var(--gauntlet-gold);
+}
+
 .documents-section h2 {
   background: var(--gauntlet-gold-gradient);
   -webkit-background-clip: text;
@@ -629,6 +674,17 @@
 .reindex-btn:disabled {
   opacity: 0.8;
   cursor: wait;
+}
+.reindex-spinner-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.35rem 0.75rem;
+  color: var(--gauntlet-gold-muted);
+  font-size: 0.85rem;
+}
+.reindex-spinner-wrap .reindex-spinner {
+  margin-right: 0;
 }
 .reindex-spinner {
   display: inline-block;

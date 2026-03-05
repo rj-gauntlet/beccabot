@@ -26,18 +26,23 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+}
+
+body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: var(--gauntlet-black);
   color: var(--gauntlet-white);
-  min-height: 100vh;
   line-height: 1.6;
   transition: background 0.2s, color 0.2s;
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 a {

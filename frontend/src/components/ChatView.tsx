@@ -255,7 +255,7 @@ export function ChatView({ messages, onMessagesChange, onClearChat }: ChatViewPr
         <input
           type="text"
           className="chat-input"
-          placeholder="Ask away. I'm ready. (Enter or Ctrl+Enter to send)"
+          placeholder="Ask away. I'm ready."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
