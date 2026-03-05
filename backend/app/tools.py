@@ -1,8 +1,24 @@
-"""BeccaBot tools: weather, directions."""
+"""BeccaBot tools: weather, directions, current time."""
 
 import urllib.parse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
+
+# City/place -> IANA timezone
+TIMEZONE_ALIASES = {
+    "austin": "America/Chicago",
+    "housing": "America/Chicago",
+    "placemakr": "America/Chicago",
+    "office": "America/Chicago",
+    "new york": "America/New_York",
+    "la": "America/Los_Angeles",
+    "los angeles": "America/Los_Angeles",
+    "chicago": "America/Chicago",
+    "london": "Europe/London",
+    "utc": "UTC",
+}
 
 from app.config import (
     HOUSING_ADDRESS,
@@ -142,6 +158,18 @@ def _resolve_location(loc: str) -> str:
     if "austin" not in key and "tx" not in key:
         return f"{loc.strip()}, Austin, TX"
     return loc.strip()
+
+
+def get_current_time(location: str = "Austin") -> str:
+    """Get the current date and time for a city/timezone. Use America/Chicago for Austin."""
+    key = location.strip().lower() if location else "austin"
+    tz_name = TIMEZONE_ALIASES.get(key, "America/Chicago")
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("America/Chicago")
+    now = datetime.now(tz)
+    return now.strftime("%A, %B %d at %I:%M %p %Z")
 
 
 def get_directions(origin: str, destination: str, travel_mode: str = "driving") -> str:
