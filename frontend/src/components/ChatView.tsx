@@ -1,28 +1,11 @@
-import type { ReactElement } from 'react'
+import type { ReactNode } from 'react'
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
-const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
-
-function formatMessageContent(content: string) {
-  const parts: (string | ReactElement)[] = []
-  let lastIndex = 0
-  let match
-  const re = new RegExp(URL_REGEX.source, 'gi')
-  while ((match = re.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(content.slice(lastIndex, match.index))
-    }
-    parts.push(
-      <a key={match.index} href={match[0]} target="_blank" rel="noopener noreferrer">
-        {match[0]}
-      </a>
-    )
-    lastIndex = re.lastIndex
-  }
-  if (lastIndex < content.length) {
-    parts.push(content.slice(lastIndex))
-  }
-  return parts.length ? parts : content
+export interface SourceInfo {
+  id: string
+  name: string
+  url: string | null
 }
 
 export interface Message {
@@ -30,16 +13,24 @@ export interface Message {
   role: 'user' | 'bot'
   content: string
   fallback?: boolean
+  timestamp?: string
+  sources?: SourceInfo[]
 }
 
 const API_BASE = '/api'
 
+function formatTimestamp(): string {
+  const d = new Date()
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 interface ChatViewProps {
   messages: Message[]
   onMessagesChange: (messages: Message[] | ((prev: Message[]) => Message[])) => void
+  onClearChat?: () => void
 }
 
-export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
+export function ChatView({ messages, onMessagesChange, onClearChat }: ChatViewProps) {
   const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
     onMessagesChange(updater)
   }
@@ -55,6 +46,16 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
     scrollToBottom()
   }, [messages, loading])
 
+  const buildHistory = (): { role: string; content: string }[] => {
+    const out: { role: string; content: string }[] = []
+    for (const m of messages) {
+      if (m.role === 'user' || m.role === 'bot') {
+        out.push({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })
+      }
+    }
+    return out
+  }
+
   const sendMessage = async () => {
     const text = input.trim()
     if (!text || loading) return
@@ -63,25 +64,35 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
+      timestamp: formatTimestamp(),
     }
     setMessages((m) => [...m, userMsg])
     setInput('')
     setLoading(true)
 
+    const history = buildHistory()
+    if (history.length > 0) history.pop() // exclude the message we just added
+
     try {
       const res = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          history: history.map((h) => ({ role: h.role, content: h.content })),
+        }),
       })
       const textRes = await res.text()
-      let data: { reply?: string; fallback?: boolean; detail?: string }
+      let data: {
+        reply?: string
+        fallback?: boolean
+        detail?: string
+        sources?: SourceInfo[]
+      }
       try {
         data = textRes ? JSON.parse(textRes) : {}
       } catch {
-        if (!res.ok) {
-          throw new Error(textRes || `Request failed (${res.status})`)
-        }
+        if (!res.ok) throw new Error(textRes || `Request failed (${res.status})`)
         throw new Error('Invalid response from server')
       }
       if (!res.ok) throw new Error(data.detail || textRes || 'Failed to send')
@@ -91,6 +102,8 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
         role: 'bot',
         content: data.reply ?? '',
         fallback: data.fallback,
+        timestamp: formatTimestamp(),
+        sources: data.sources?.length ? data.sources : undefined,
       }
       setMessages((m) => [...m, botMsg])
     } catch (err) {
@@ -105,6 +118,7 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
           role: 'bot',
           content: `Sorry, I couldn't get a response: ${errMsg}. Try again or reach out to Rebecca!`,
           fallback: true,
+          timestamp: formatTimestamp(),
         },
       ])
     } finally {
@@ -112,35 +126,122 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const copyMessage = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+    } catch {
+      // ignore
+    }
+  }
+
+  const shareMessage = async (content: string) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'BeccaBot',
+          text: content,
+        })
+      } catch {
+        // User cancelled or error - ignore
+      }
+    } else {
+      copyMessage(content)
+    }
+  }
+
+  const renderBotContent = (content: string): ReactNode => {
+    return (
+      <ReactMarkdown
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    )
+  }
+
   return (
     <div className="chat-container">
+      {onClearChat && (
+        <div className="chat-header">
+          <button type="button" className="clear-chat-btn" onClick={onClearChat} title="New conversation">
+            New chat
+          </button>
+        </div>
+      )}
       <div className="messages">
         {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`message-row ${m.role}`}
-          >
+          <div key={m.id} className={`message-row ${m.role}`}>
             {m.role === 'bot' && (
-              <img
-                src="/beccabot-avatar.png"
-                alt="BeccaBot"
-                className="message-avatar"
-              />
+              <img src="/beccabot-avatar.png" alt="BeccaBot" className="message-avatar" />
             )}
-            <div
-              className={`message ${m.role} ${m.fallback ? 'fallback' : ''}`}
-            >
-              {formatMessageContent(m.content)}
+            <div className={`message-wrapper ${m.role}`}>
+              <div className={`message ${m.role} ${m.fallback ? 'fallback' : ''}`}>
+                {m.role === 'bot' ? renderBotContent(m.content) : m.content}
+              </div>
+              {(m.timestamp || (m.role === 'bot' && m.sources && m.sources.length > 0) || m.role === 'bot') && (
+                <div className="message-meta">
+                  {m.timestamp && <span className="message-time">{m.timestamp}</span>}
+                  {m.role === 'bot' && m.sources && m.sources.length > 0 && (
+                    <div className="message-sources">
+                      Sources:{' '}
+                      {m.sources.map((s) =>
+                        s.url ? (
+                          <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">
+                            {s.name}
+                          </a>
+                        ) : (
+                          <span key={s.id} className="source-name">
+                            {s.name}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  )}
+                  {m.role === 'bot' && (
+                    <div className="message-actions">
+                      <button
+                        type="button"
+                        className="message-action-btn"
+                        onClick={() => copyMessage(m.content)}
+                        title="Copy"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        className="message-action-btn"
+                        onClick={() => shareMessage(m.content)}
+                        title="Share"
+                      >
+                        Share
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
         {loading && (
           <div className="message-row bot">
-            <img
-              src="/beccabot-avatar.png"
-              alt="BeccaBot"
-              className="message-avatar"
-            />
+            <img src="/beccabot-avatar.png" alt="BeccaBot" className="message-avatar" />
             <div className="message bot typing-indicator">
               <span className="typing-dot" />
               <span className="typing-dot" />
@@ -154,10 +255,10 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
         <input
           type="text"
           className="chat-input"
-          placeholder="Ask away. I'm ready."
+          placeholder="Ask away. I'm ready. (Enter or Ctrl+Enter to send)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+          onKeyDown={handleKeyDown}
           disabled={loading}
         />
         <button

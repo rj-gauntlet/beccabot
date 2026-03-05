@@ -24,6 +24,8 @@ export interface ChatMessage {
   role: 'user' | 'bot'
   content: string
   fallback?: boolean
+  timestamp?: string
+  sources?: { id: string; name: string; url: string | null }[]
 }
 
 function loadChatHistory(): ChatMessage[] {
@@ -210,6 +212,7 @@ function App() {
           <ChatView
             messages={chatMessages}
             onMessagesChange={setChatMessages}
+            onClearChat={() => setChatMessages([WELCOME_MESSAGE as ChatMessage])}
           />
         )}
         {view === 'documents' && (

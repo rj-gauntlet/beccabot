@@ -185,6 +185,24 @@
   transition: background 0.2s, border-color 0.2s;
 }
 
+.chat-header {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--gauntlet-border);
+}
+
+.clear-chat-btn {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  color: var(--gauntlet-gray);
+  border: 1px solid var(--gauntlet-border);
+  font-size: 0.9rem;
+}
+.clear-chat-btn:hover {
+  color: var(--gauntlet-gold-muted);
+  border-color: var(--gauntlet-gold-muted);
+}
+
 .messages {
   flex: 1;
   min-height: 0;
@@ -199,7 +217,14 @@
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
-  max-width: 90%;
+  max-width: 95%;
+}
+
+.message-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 85%;
 }
 .message-row.user {
   align-self: flex-end;
@@ -239,6 +264,55 @@
 }
 .message.bot.fallback {
   border-left: 3px solid var(--gauntlet-gold-muted);
+}
+
+/* Markdown in bot messages */
+.message.bot p { margin: 0 0 0.5em; }
+.message.bot p:last-child { margin-bottom: 0; }
+.message.bot ul, .message.bot ol { margin: 0.25em 0; padding-left: 1.25em; }
+.message.bot code { background: var(--gauntlet-black); padding: 0.15em 0.35em; border-radius: 4px; font-size: 0.9em; }
+
+.message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--gauntlet-gray);
+}
+
+.message-time {
+  flex-shrink: 0;
+}
+
+.message-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+.message-sources a,
+.source-name {
+  color: var(--gauntlet-gold-muted);
+}
+.message-sources a:hover {
+  color: var(--gauntlet-gold-light);
+}
+
+.message-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.message-action-btn {
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--gauntlet-gray);
+  border: none;
+  font-size: 0.8rem;
+}
+.message-action-btn:hover {
+  color: var(--gauntlet-gold-muted);
 }
 
 .typing-indicator {
@@ -598,4 +672,18 @@
   -webkit-text-fill-color: transparent;
   text-align: center;
   padding: 1rem;
+}
+
+/* Mobile-friendly: touch targets, responsive layout */
+@media (max-width: 640px) {
+  .header { padding: 0.75rem 1rem; }
+  .main { padding: 1rem; }
+  .message-row { max-width: 100%; }
+  .message-wrapper { max-width: 100%; }
+  .message { max-width: 100%; }
+  .message-avatar { width: 48px; height: 48px; }
+  .chat-input-row { padding: 0.75rem; }
+  .chat-input { min-height: 44px; font-size: 16px; }
+  .send-btn { min-height: 44px; min-width: 60px; padding: 0.75rem 1rem; }
+  .nav-btn { min-height: 44px; padding: 0.6rem 0.9rem; }
 }

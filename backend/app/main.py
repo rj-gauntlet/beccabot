@@ -8,13 +8,14 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.config import DOCUMENTS_PIN, LINKS_PATH, REBECCA_CONTACT, STATIC_DIR, UPLOADS_DIR
 from app.links import fetch_google_document, fetch_url_text, is_valid_url
 from app.rag import RAGStore, generate_response
+from app.sheets_logger import log_unanswerable_question
 
 app = FastAPI(title="BeccaBot API", version="0.1.0")
 
@@ -44,13 +45,26 @@ rag = RAGStore()
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".pptx", ".ppt", ".xlsx", ".csv"}
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
+    history: list[ChatMessage] | None = None
+
+
+class SourceInfo(BaseModel):
+    id: str
+    name: str
+    url: str | None = None
 
 
 class ChatResponse(BaseModel):
     reply: str
     fallback: bool = False
+    sources: list[SourceInfo] = []
 
 
 class AddLinkRequest(BaseModel):
@@ -78,6 +92,27 @@ def _is_link_id(doc_id: str) -> bool:
     return doc_id.startswith("link:")
 
 
+def _resolve_sources(source_ids: list[str]) -> list[dict]:
+    """Resolve source_ids to {id, name, url?} for the API."""
+    links_by_id = {l["id"]: l for l in _load_links()}
+    result = []
+    seen = set()
+    for sid in source_ids:
+        if sid in seen:
+            continue
+        seen.add(sid)
+        if sid == "manual":
+            result.append({"id": sid, "name": "Manual notes", "url": None})
+        elif _is_link_id(sid):
+            link = links_by_id.get(sid)
+            name = (link.get("title") or link.get("url", sid)) if link else sid
+            url = link.get("url") if link else None
+            result.append({"id": sid, "name": name, "url": url})
+        else:
+            result.append({"id": sid, "name": sid, "url": None})
+    return result
+
+
 def _require_documents_auth(x_documents_pin: str | None = Header(None)):
     """Require valid Documents PIN when DOCUMENTS_PIN is configured."""
     if not DOCUMENTS_PIN:
@@ -103,18 +138,67 @@ def chat(req: ChatRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
+    history = None
+    if req.history:
+        history = [{"role": m.role, "content": m.content} for m in req.history]
+
     try:
-        chunks, found = rag.query(question)
+        chunks, source_ids, found = rag.query(question)
         use_fallback = not found
-        reply = generate_response(question, chunks, use_fallback=use_fallback)
+        reply, out_sources = generate_response(
+            question, chunks, use_fallback=use_fallback, history=history, source_ids=source_ids
+        )
+        sources_resolved = _resolve_sources(out_sources)
+        if use_fallback:
+            log_unanswerable_question(question)
     except Exception as e:
         logging.exception("Chat error")
         return ChatResponse(
             reply=f"Well, that backfired. Something broke on my end—{REBECCA_CONTACT}",
             fallback=True,
+            sources=[],
         )
 
-    return ChatResponse(reply=reply, fallback=use_fallback)
+    return ChatResponse(reply=reply, fallback=use_fallback, sources=sources_resolved)
+
+
+@api.post("/chat/stream")
+def chat_stream(req: ChatRequest):
+    """Stream chat response as SSE. Same logic as /chat but yields text incrementally."""
+    question = req.message.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    history = None
+    if req.history:
+        history = [{"role": m.role, "content": m.content} for m in req.history]
+
+    def generate():
+        try:
+            chunks, source_ids, found = rag.query(question)
+            use_fallback = not found
+            reply, out_sources = generate_response(
+                question, chunks, use_fallback=use_fallback, history=history, source_ids=source_ids
+            )
+            sources_resolved = _resolve_sources(out_sources)
+            if use_fallback:
+                log_unanswerable_question(question)
+            # Stream reply in chunks (by sentence or ~50 chars)
+            import re
+            parts = re.split(r"(?<=[.!?]\s)|(?<=\n)", reply) or [reply]
+            for part in parts:
+                if part.strip():
+                    yield f"data: {json.dumps({'type': 'text', 'content': part})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'fallback': use_fallback, 'sources': sources_resolved})}\n\n"
+        except Exception as e:
+            logging.exception("Chat stream error")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @api.get("/documents/locked")

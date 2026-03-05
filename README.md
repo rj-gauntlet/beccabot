@@ -8,6 +8,12 @@ An AI assistant for Rebecca Metters (Director of Program Experience at Gauntlet 
 - **Document management**: Upload, view, and delete PDF, Word, PowerPoint, and text files
 - **Black & gold UI**: Gauntlet AI branding
 - **Fallback messages**: When the bot can't answer, directs users to contact Rebecca
+- **Tools**: Weather (Austin), directions (housing ↔ office), current time
+- **Source citations**: Bot shows which documents were used for each answer
+- **Conversation history**: Follow-up questions use prior context
+- **Unanswerable questions catalog**: Logged to Google Sheets (optional) for frequency analysis
+- **Slack integration**: Optional Slack bot (Socket Mode)
+- **Mobile-friendly**: Responsive layout, touch targets
 
 ## Quick start
 
@@ -71,6 +77,10 @@ beccabot/
 | `OPENAI_API_KEY` | Required for embeddings + chat (gpt-4o-mini). |
 | `REBECCA_EMAIL` | Contact email in fallback messages |
 | `REBECCA_CONTACT` | Custom fallback message text |
+| `GOOGLE_SHEETS_CREDENTIALS_PATH` | Path to service account JSON (catalog unanswerable questions) |
+| `GOOGLE_SHEET_ID` | Google Sheet ID for unanswerable questions |
+| `SLACK_BOT_TOKEN` | For Slack integration (`python -m app.slack_bot`) |
+| `SLACK_APP_TOKEN` | For Slack Socket Mode |
 
 ## Document support
 
@@ -92,6 +102,17 @@ Add a shareable link instead of uploading. Document must be shared as **"Anyone 
 - Google Slides → exported as PDF
 
 Regular web pages are scraped for text (script-heavy pages may have limited content).
+
+### Slack integration
+
+1. Create a [Slack App](https://api.slack.com/apps) and enable Socket Mode.
+2. Add `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` to `.env`.
+3. Run the Slack bot: `python -m app.slack_bot` (in addition to the FastAPI server).
+4. Invite the bot to channels or DM it. Use `@BeccaBot` for mentions.
+
+### Unanswerable questions catalog
+
+Set `GOOGLE_SHEETS_CREDENTIALS_PATH` and `GOOGLE_SHEET_ID`. Create a Google Sheet with columns `Timestamp` and `Question`, and share it with the service account email from your credentials JSON.
 
 ## Deploy to Render
 
