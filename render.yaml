@@ -1,0 +1,29 @@
+# BeccaBot - Render.com deployment
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: beccabot
+    runtime: python
+
+    buildCommand: |
+      cd frontend && npm ci && npm run build
+      cd ../backend && pip install -r requirements.txt
+
+    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DOCUMENTS_PIN
+        sync: false
+      - key: OPENWEATHERMAP_API_KEY
+        sync: false
+      - key: HOUSING_ADDRESS
+        sync: false
+      - key: OFFICE_ADDRESS
+        sync: false
+      - key: REBECCA_EMAIL
+        sync: false

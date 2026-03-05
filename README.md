@@ -93,6 +93,16 @@ Add a shareable link instead of uploading. Document must be shared as **"Anyone 
 
 Regular web pages are scraped for text (script-heavy pages may have limited content).
 
+## Deploy to Render
+
+1. Push this repo to GitHub.
+2. Go to [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**.
+3. Connect your GitHub repo. Render will detect `render.yaml`.
+4. Add environment variables in the Render dashboard: `OPENAI_API_KEY` (required), and optionally `DOCUMENTS_PIN`, `OPENWEATHERMAP_API_KEY`, `HOUSING_ADDRESS`, `OFFICE_ADDRESS`, `REBECCA_EMAIL`.
+5. Deploy. The app will be live at `https://beccabot.onrender.com` (or your chosen name).
+
+> **Note:** On Render's free tier, the filesystem is ephemeral—uploads and RAG store are reset on each deploy. Use a Persistent Disk (paid) for production if you need to retain documents.
+
 ### OCR for scanned PDFs
 
 If a PDF has no extractable text (image-based or scanned), BeccaBot will try OCR using Tesseract. Install Tesseract:

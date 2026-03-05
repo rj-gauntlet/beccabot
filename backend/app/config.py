@@ -9,6 +9,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOADS_DIR = BASE_DIR / "uploads"
 LINKS_PATH = BASE_DIR / "links.json"
+STATIC_DIR = BASE_DIR.parent / "frontend" / "dist"
 
 # Ensure directories exist
 UPLOADS_DIR.mkdir(exist_ok=True)
