@@ -12,6 +12,7 @@ from openai import OpenAI
 
 from app.config import OPENAI_API_KEY, REBECCA_CONTACT
 from app.documents import parse_document
+from app.tools import get_directions, get_weather
 
 # Chunk settings
 CHUNK_SIZE = 1000
@@ -177,42 +178,123 @@ class RAGStore:
         return chunks, len(chunks) > 0
 
 
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather for a location. Use when user asks about weather, temperature, or conditions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City/location (e.g. Austin, housing, office). Default to Austin for Gauntlet.",
+                    },
+                },
+                "required": ["location"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_directions",
+            "description": "Get Google Maps directions. Origin and destination can be: 'housing' (PlaceMakr, 710 E 3rd St), 'office' (416 Congress Ave), or any address/place in Austin (e.g. 'Zilker Park', '600 Congress Ave', 'Franklin Barbecue'). Use when user asks how to get somewhere or for directions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {
+                        "type": "string",
+                        "description": "Starting point: 'housing', 'office', or an address/place in Austin",
+                    },
+                    "destination": {
+                        "type": "string",
+                        "description": "End point: 'housing', 'office', or an address/place in Austin",
+                    },
+                    "travel_mode": {
+                        "type": "string",
+                        "enum": ["driving", "walking", "transit", "bicycling"],
+                        "description": "Mode of travel. Default driving for longer trips, walking for short ones.",
+                    },
+                },
+                "required": ["origin", "destination"],
+            },
+        },
+    },
+]
+
+
+def _execute_tool(name: str, args: dict) -> str:
+    if name == "get_weather":
+        return get_weather(args.get("location", "Austin"))
+    if name == "get_directions":
+        return get_directions(
+            args.get("origin", ""),
+            args.get("destination", ""),
+            args.get("travel_mode", "walking"),
+        )
+    return f"Unknown tool: {name}"
+
+
 def generate_response(
     question: str, context_chunks: list[str], use_fallback: bool = False
 ) -> str:
     """Generate a reply using OpenAI, or return fallback message."""
-    if use_fallback and not context_chunks:
-        return REBECCA_CONTACT
-    if not context_chunks:
-        return REBECCA_CONTACT
-
     if not OPENAI_API_KEY:
         return (
-            "I'd love to help, but the AI isn't configured yet. "
+            "Would love to help, but someone forgot to plug in the AI. "
             + REBECCA_CONTACT
         )
 
     client = OpenAI(api_key=OPENAI_API_KEY)
-    context = "\n\n---\n\n".join(context_chunks)
+    context = "\n\n---\n\n".join(context_chunks) if context_chunks else "(No relevant documentation for this question. Use your tools if the user asks about weather or directions.)"
 
-    system = """You are BeccaBot, an AI assistant with Rebecca Metters' personality. 
-Rebecca is the Director of Program Experience at Gauntlet AI. She's straight to the point, friendly, and a little sassy.
+    system = """You are BeccaBot, an AI assistant with Rebecca Metters' personality.
+Rebecca is the Director of Program Experience at Gauntlet AI. She's straight to the point, friendly, and noticeably sassy.
+Tone: Use dry humor, light roasting, and playful teasing. Drop in occasional eye-rolls, "obviously," "here's the fun part," or gentle sarcasm. Don't be mean—be the friend who keeps you honest and makes you laugh.
 Answer questions based on the provided context. Extract and share the relevant info—addresses, dates, names, etc. Be concise and personable.
-Only suggest reaching out to Rebecca if the context truly does not contain the answer. Do not make up information."""
+You have tools: get_weather (for weather) and get_directions (for anywhere in Austin—housing, office, or any address/place). Use them when users ask. For directions, include the link in your reply so they can tap/click it.
+Only suggest reaching out to Rebecca if the context and tools truly do not have the answer. Do not make up information."""
 
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=500,
-        messages=[
-            {"role": "system", "content": system},
-            {
-                "role": "user",
-                "content": f"Context from documentation:\n\n{context}\n\n---\n\nQuestion: {question}",
-            },
-        ],
-    )
-    text = resp.choices[0].message.content or ""
-    # Only use fallback if the response is predominantly "I don't know" (starts with it or is very short)
+    messages = [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": f"Context from documentation:\n\n{context}\n\n---\n\nQuestion: {question}",
+        },
+    ]
+    max_tool_rounds = 3
+    for _ in range(max_tool_rounds):
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=500,
+            messages=messages,
+            tools=TOOLS,
+        )
+        choice = resp.choices[0]
+        if choice.finish_reason == "stop":
+            text = choice.message.content or ""
+            break
+        if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+            for tc in choice.message.tool_calls:
+                name = tc.function.name
+                args = json.loads(tc.function.arguments or "{}")
+                result = _execute_tool(name, args)
+                messages.append(choice.message)
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    }
+                )
+            continue
+        text = choice.message.content or ""
+        break
+    else:
+        text = choice.message.content or "Took too many turns. Try again?"
+
     lower = text.lower().strip()
     if len(text) < 80 and any(
         p in lower for p in ["i'm not sure", "i don't know", "i cannot", "not in the context"]

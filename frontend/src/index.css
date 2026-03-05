@@ -12,6 +12,16 @@
   --gauntlet-border: #2a2a2a;
 }
 
+/* Light mode */
+[data-theme="light"] {
+  --gauntlet-black: #f8f8f8;
+  --gauntlet-black-soft: #ffffff;
+  --gauntlet-black-muted: #f0f0f0;
+  --gauntlet-white: #1a1a1a;
+  --gauntlet-gray: #555;
+  --gauntlet-border: #e0e0e0;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -23,6 +33,7 @@ body {
   color: var(--gauntlet-white);
   min-height: 100vh;
   line-height: 1.6;
+  transition: background 0.2s, color 0.2s;
 }
 
 #root {

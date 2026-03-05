@@ -7,10 +7,20 @@ interface DocumentInfo {
   name: string
   size?: number
   url?: string
-  type?: 'file' | 'link'
+  type?: 'file' | 'link' | 'manual'
 }
 
-export function DocumentsView() {
+interface DocumentsViewProps {
+  pin?: string
+  onLock?: () => void
+}
+
+export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
+  const headers = (): HeadersInit => {
+    const h: Record<string, string> = {}
+    if (pin) h['X-Documents-PIN'] = pin
+    return h
+  }
   const [documents, setDocuments] = useState<DocumentInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -18,10 +28,12 @@ export function DocumentsView() {
   const [linkUrl, setLinkUrl] = useState('')
   const [linkTitle, setLinkTitle] = useState('')
   const [dragover, setDragover] = useState(false)
+  const [manualText, setManualText] = useState('')
+  const [ingesting, setIngesting] = useState(false)
 
   const fetchDocuments = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/documents`)
+      const res = await fetch(`${API_BASE}/documents`, { headers: headers() })
       const data = await res.json()
       setDocuments(data.documents || [])
     } catch {
@@ -29,7 +41,7 @@ export function DocumentsView() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pin])
 
   useEffect(() => {
     fetchDocuments()
@@ -51,6 +63,7 @@ export function DocumentsView() {
       formData.append('file', file)
       const res = await fetch(`${API_BASE}/documents/upload`, {
         method: 'POST',
+        headers: headers(),
         body: formData,
       })
       const data = await res.json()
@@ -61,6 +74,27 @@ export function DocumentsView() {
       alert(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleIngestManual = async () => {
+    const text = manualText.trim()
+    if (!text || ingesting) return
+    setIngesting(true)
+    try {
+      const res = await fetch(`${API_BASE}/documents/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers() },
+        body: JSON.stringify({ text }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Ingest failed')
+      await fetchDocuments()
+      setManualText('')
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to ingest')
+    } finally {
+      setIngesting(false)
     }
   }
 
@@ -75,7 +109,7 @@ export function DocumentsView() {
     try {
       const res = await fetch(`${API_BASE}/documents/link`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ url, title: linkTitle.trim() || undefined }),
       })
       const data = await res.json()
@@ -92,10 +126,11 @@ export function DocumentsView() {
   }
 
   const handleReindex = async (doc: DocumentInfo) => {
+    if (doc.type === 'manual') return
     try {
       const res = await fetch(`${API_BASE}/documents/reindex`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ id: doc.id }),
       })
       const data = await res.json()
@@ -115,7 +150,7 @@ export function DocumentsView() {
     try {
       const res = await fetch(`${API_BASE}/documents/delete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ id: doc.id }),
       })
       if (!res.ok) {
@@ -136,10 +171,40 @@ export function DocumentsView() {
 
   return (
     <div className="documents-section">
-      <h2>Document library</h2>
+      <div className="documents-header">
+        <h2>Document library</h2>
+        {onLock && (
+          <button className="lock-btn" onClick={onLock} title="Lock Documents">
+            🔒 Lock
+          </button>
+        )}
+      </div>
       <p style={{ color: 'var(--gauntlet-gray)', marginBottom: '1rem' }}>
         Upload files or add links. BeccaBot will use them to answer questions.
       </p>
+
+      <div className="add-link-section">
+        <label htmlFor="manual-text">Manual notes</label>
+        <p style={{ color: 'var(--gauntlet-gray)', fontSize: '0.9rem', margin: '0.25rem 0 0.5rem' }}>
+          Paste or type info to add directly to BeccaBot&apos;s knowledge. Saving replaces any existing manual notes.
+        </p>
+        <textarea
+          id="manual-text"
+          className="manual-textarea"
+          placeholder="Housing address: PlaceMakr, 710 E 3rd St... Emergency contact: ..."
+          value={manualText}
+          onChange={(e) => setManualText(e.target.value)}
+          rows={4}
+        />
+        <button
+          className="add-link-btn"
+          onClick={handleIngestManual}
+          disabled={ingesting || !manualText.trim()}
+          style={{ marginTop: '0.5rem' }}
+        >
+          {ingesting ? 'Ingesting...' : 'Ingest'}
+        </button>
+      </div>
 
       <div className="add-link-section">
         <label htmlFor="link-url">Add a link</label>
@@ -215,6 +280,11 @@ export function DocumentsView() {
                     </a>
                     <span style={{ color: 'var(--gauntlet-gray)', fontSize: '0.85em' }}> (link)</span>
                   </>
+                ) : doc.type === 'manual' ? (
+                  <>
+                    {doc.name}{' '}
+                    <span style={{ color: 'var(--gauntlet-gray)', fontSize: '0.85em' }}>(manual notes)</span>
+                  </>
                 ) : (
                   <>
                     {doc.name}{' '}
@@ -225,13 +295,15 @@ export function DocumentsView() {
                 )}
               </span>
               <span className="doc-actions">
-                <button
-                  className="reindex-btn"
-                  onClick={() => handleReindex(doc)}
-                  aria-label={`Reindex ${doc.name}`}
-                >
-                  Reindex
-                </button>
+                {doc.type !== 'manual' && (
+                  <button
+                    className="reindex-btn"
+                    onClick={() => handleReindex(doc)}
+                    aria-label={`Reindex ${doc.name}`}
+                  >
+                    Reindex
+                  </button>
+                )}
                 <button
                   className="delete-btn"
                   onClick={() => handleDelete(doc)}

@@ -5,11 +5,11 @@ import logging
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.config import LINKS_PATH, REBECCA_CONTACT, UPLOADS_DIR
+from app.config import DOCUMENTS_PIN, LINKS_PATH, REBECCA_CONTACT, UPLOADS_DIR
 from app.links import fetch_google_document, fetch_url_text, is_valid_url
 from app.rag import RAGStore, generate_response
 
@@ -43,6 +43,10 @@ class AddLinkRequest(BaseModel):
     title: str | None = None
 
 
+class ManualIngestRequest(BaseModel):
+    text: str
+
+
 def _load_links() -> list[dict]:
     """Load stored links from disk."""
     if LINKS_PATH.exists():
@@ -57,6 +61,14 @@ def _save_links(links: list[dict]) -> None:
 def _is_link_id(doc_id: str) -> bool:
     """Check if doc_id refers to a link (vs uploaded file)."""
     return doc_id.startswith("link:")
+
+
+def _require_documents_auth(x_documents_pin: str | None = Header(None)):
+    """Require valid Documents PIN when DOCUMENTS_PIN is configured."""
+    if not DOCUMENTS_PIN:
+        return
+    if not x_documents_pin or x_documents_pin != DOCUMENTS_PIN:
+        raise HTTPException(status_code=403, detail="Documents access requires authentication")
 
 
 @app.get("/")
@@ -83,14 +95,20 @@ def chat(req: ChatRequest):
     except Exception as e:
         logging.exception("Chat error")
         return ChatResponse(
-            reply=f"Something went wrong on my end. {REBECCA_CONTACT}",
+            reply=f"Well, that backfired. Something broke on my end—{REBECCA_CONTACT}",
             fallback=True,
         )
 
     return ChatResponse(reply=reply, fallback=use_fallback)
 
 
-@app.get("/documents")
+@app.get("/documents/locked")
+def documents_locked():
+    """Return whether Documents tab requires PIN. Frontend uses this to show lock UI."""
+    return {"locked": bool(DOCUMENTS_PIN)}
+
+
+@app.get("/documents", dependencies=[Depends(_require_documents_auth)])
 def list_documents():
     """List all documents (uploaded files + links)."""
     docs = []
@@ -113,10 +131,12 @@ def list_documents():
                 "type": "link",
             }
         )
+    if "manual" in set(rag.sources):
+        docs.append({"id": "manual", "name": "Manual notes", "type": "manual"})
     return {"documents": docs}
 
 
-@app.post("/documents/upload")
+@app.post("/documents/upload", dependencies=[Depends(_require_documents_auth)])
 def upload_document(file: UploadFile = File(...)):
     """Upload a document (PDF, DOCX, TXT, PPTX)."""
     suffix = Path(file.filename or "").suffix.lower()
@@ -140,7 +160,17 @@ def upload_document(file: UploadFile = File(...)):
     }
 
 
-@app.post("/documents/link")
+@app.post("/documents/manual", dependencies=[Depends(_require_documents_auth)])
+def ingest_manual(req: ManualIngestRequest):
+    """Ingest manually entered text into the RAG store."""
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    chunk_count = rag.add_from_text(text, "manual")
+    return {"id": "manual", "name": "Manual notes", "chunks": chunk_count, "type": "manual"}
+
+
+@app.post("/documents/link", dependencies=[Depends(_require_documents_auth)])
 def add_link(req: AddLinkRequest):
     """Add a URL to the document library. Supports web pages, Google Docs, Sheets, Slides."""
     url = req.url.strip()
@@ -202,10 +232,13 @@ class DeleteRequest(BaseModel):
     id: str
 
 
-@app.post("/documents/delete")
+@app.post("/documents/delete", dependencies=[Depends(_require_documents_auth)])
 def delete_document_by_id(req: DeleteRequest):
-    """Delete a document (file or link) by ID. Uses POST+body to avoid URL encoding issues with link IDs."""
+    """Delete a document (file, link, or manual notes) by ID. Uses POST+body to avoid URL encoding issues with link IDs."""
     doc_id = req.id
+    if doc_id == "manual":
+        rag.remove_document("manual")
+        return {"deleted": "manual"}
     if _is_link_id(doc_id):
         links = _load_links()
         links = [l for l in links if l["id"] != doc_id]
@@ -234,7 +267,7 @@ class ReindexRequest(BaseModel):
     id: str
 
 
-@app.post("/documents/reindex")
+@app.post("/documents/reindex", dependencies=[Depends(_require_documents_auth)])
 def reindex_document_by_id(req: ReindexRequest):
     """Re-index a document (file or link) by ID. Uses POST+body to avoid URL encoding issues."""
     doc_id = req.id

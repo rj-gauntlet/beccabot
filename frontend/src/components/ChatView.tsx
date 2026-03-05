@@ -1,5 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
 
+const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
+
+function formatMessageContent(content: string) {
+  const parts: (string | JSX.Element)[] = []
+  let lastIndex = 0
+  let match
+  const re = new RegExp(URL_REGEX.source, 'gi')
+  while ((match = re.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+    parts.push(
+      <a key={match.index} href={match[0]} target="_blank" rel="noopener noreferrer">
+        {match[0]}
+      </a>
+    )
+    lastIndex = re.lastIndex
+  }
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+  return parts.length ? parts : content
+}
+
 interface Message {
   id: string
   role: 'user' | 'bot'
@@ -9,8 +33,15 @@ interface Message {
 
 const API_BASE = '/api'
 
+const WELCOME_MESSAGE: Message = {
+  id: 'welcome',
+  role: 'bot',
+  content:
+    "Hey there! I'm BeccaBot—Rebecca's AI stand-in. Ask me anything about Gauntlet AI's programs, check the weather in Austin, or get directions between housing and the office. Go.",
+}
+
 export function ChatView() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -83,30 +114,46 @@ export function ChatView() {
   return (
     <div className="chat-container">
       <div className="messages">
-        {messages.length === 0 && (
-          <div className="welcome">
-            <h2>Hey there!</h2>
-            <p>
-              I'm BeccaBot. Ask me anything about Gauntlet AI's programs — I'm
-              here to help. What's on your mind?
-            </p>
-          </div>
-        )}
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`message ${m.role} ${m.fallback ? 'fallback' : ''}`}
+            className={`message-row ${m.role}`}
           >
-            {m.content}
+            {m.role === 'bot' && (
+              <img
+                src="/beccabot-avatar.png"
+                alt="BeccaBot"
+                className="message-avatar"
+              />
+            )}
+            <div
+              className={`message ${m.role} ${m.fallback ? 'fallback' : ''}`}
+            >
+              {formatMessageContent(m.content)}
+            </div>
           </div>
         ))}
+        {loading && (
+          <div className="message-row bot">
+            <img
+              src="/beccabot-avatar.png"
+              alt="BeccaBot"
+              className="message-avatar"
+            />
+            <div className="message bot typing-indicator">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
       <div className="chat-input-row">
         <input
           type="text"
           className="chat-input"
-          placeholder="Ask me anything..."
+          placeholder="Ask away. I'm (probably) ready."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
