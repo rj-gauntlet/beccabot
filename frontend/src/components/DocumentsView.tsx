@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback } from 'react'
 
 const API_BASE = '/api'
 
+async function parseJsonResponse<T = unknown>(res: Response): Promise<T> {
+  const text = await res.text()
+  try {
+    return (text ? JSON.parse(text) : {}) as T
+  } catch {
+    throw new Error(res.ok ? 'Invalid response from server' : text || `Request failed (${res.status})`)
+  }
+}
+
 interface DocumentInfo {
   id: string
   name: string
@@ -34,7 +43,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
   const fetchDocuments = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/documents`, { headers: headers() })
-      const data = await res.json()
+      const data = await parseJsonResponse<{ documents?: DocumentInfo[]; manualText?: string }>(res)
       setDocuments(data.documents || [])
       setManualText(data.manualText ?? '')
     } catch {
@@ -67,7 +76,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         headers: headers(),
         body: formData,
       })
-      const data = await res.json()
+      const data = await parseJsonResponse<{ detail?: string; warning?: string }>(res)
       if (!res.ok) throw new Error(data.detail || 'Upload failed')
       if (data.warning) alert(data.warning)
       await fetchDocuments()
@@ -88,7 +97,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ text }),
       })
-      const data = await res.json()
+      const data = await parseJsonResponse<{ detail?: string }>(res)
       if (!res.ok) throw new Error(data.detail || 'Ingest failed')
       await fetchDocuments()
     } catch (err) {
@@ -112,7 +121,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ url, title: linkTitle.trim() || undefined }),
       })
-      const data = await res.json()
+      const data = await parseJsonResponse<{ detail?: string; warning?: string }>(res)
       if (!res.ok) throw new Error(data.detail || 'Failed to add link')
       if (data.warning) alert(data.warning)
       setLinkUrl('')
@@ -133,7 +142,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         headers: { 'Content-Type': 'application/json', ...headers() },
         body: JSON.stringify({ id: doc.id }),
       })
-      const data = await res.json()
+      const data = await parseJsonResponse<{ detail?: string; chunks?: number }>(res)
       if (!res.ok) throw new Error(data.detail || 'Reindex failed')
       if (data.chunks === 0) {
         alert('No text could be extracted. For scanned PDFs, install Tesseract OCR (see README).')
@@ -154,7 +163,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
         body: JSON.stringify({ id: doc.id }),
       })
       if (!res.ok) {
-        const data = await res.json()
+        const data = await parseJsonResponse<{ detail?: string }>(res)
         throw new Error(data.detail || 'Delete failed')
       }
       await fetchDocuments()
