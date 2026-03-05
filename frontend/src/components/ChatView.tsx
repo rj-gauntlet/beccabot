@@ -1,9 +1,10 @@
+import type { ReactElement } from 'react'
 import { useState, useRef, useEffect } from 'react'
 
 const URL_REGEX = /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi
 
 function formatMessageContent(content: string) {
-  const parts: (string | JSX.Element)[] = []
+  const parts: (string | ReactElement)[] = []
   let lastIndex = 0
   let match
   const re = new RegExp(URL_REGEX.source, 'gi')
@@ -88,7 +89,7 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
       const botMsg: Message = {
         id: crypto.randomUUID(),
         role: 'bot',
-        content: data.reply,
+        content: data.reply ?? '',
         fallback: data.fallback,
       }
       setMessages((m) => [...m, botMsg])
