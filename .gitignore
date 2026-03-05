@@ -16,6 +16,7 @@ backend/links.json
 # Frontend
 frontend/node_modules/
 frontend/dist/
+backend/static/
 
 # OS
 .DS_Store
