@@ -169,7 +169,7 @@ function App() {
               onClick={openDocuments}
               title={documentsLocked ? 'Authentication required' : 'Open documents'}
             >
-              {documentsLocked ? 'Documents (auth required)' : 'Documents'}
+              Documents
             </button>
           </div>
         </div>

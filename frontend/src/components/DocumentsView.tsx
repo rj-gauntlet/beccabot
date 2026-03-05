@@ -36,6 +36,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
       const res = await fetch(`${API_BASE}/documents`, { headers: headers() })
       const data = await res.json()
       setDocuments(data.documents || [])
+      setManualText(data.manualText ?? '')
     } catch {
       setDocuments([])
     } finally {
@@ -90,7 +91,6 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Ingest failed')
       await fetchDocuments()
-      setManualText('')
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to ingest')
     } finally {

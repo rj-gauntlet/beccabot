@@ -156,6 +156,13 @@ class RAGStore:
         self.sources = [self.sources[i] for i in keep]
         self._save()
 
+    def get_document_text(self, source_id: str) -> str | None:
+        """Return the full text for a source (joined chunks). Used for manual notes editing."""
+        indices = [i for i, s in enumerate(self.sources) if s == source_id]
+        if not indices:
+            return None
+        return "\n\n".join(self.chunks[i] for i in indices)
+
     def query(
         self, question: str, n_results: int = 10, min_score: Optional[float] = None
     ) -> tuple[list[str], bool]:

@@ -131,9 +131,11 @@ def list_documents():
                 "type": "link",
             }
         )
+    manual_text = None
     if "manual" in set(rag.sources):
         docs.append({"id": "manual", "name": "Manual notes", "type": "manual"})
-    return {"documents": docs}
+        manual_text = rag.get_document_text("manual") or ""
+    return {"documents": docs, "manualText": manual_text}
 
 
 @app.post("/documents/upload", dependencies=[Depends(_require_documents_auth)])
