@@ -7,7 +7,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.requests import Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -16,6 +17,15 @@ from app.links import fetch_google_document, fetch_url_text, is_valid_url
 from app.rag import RAGStore, generate_response
 
 app = FastAPI(title="BeccaBot API", version="0.1.0")
+
+
+@app.exception_handler(Exception)
+def handle_unhandled_exception(request: Request, exc: Exception):
+    """Return JSON 500 for unhandled exceptions so frontend always gets parseable errors."""
+    logging.exception("Unhandled exception: %s", exc)
+    msg = str(exc) if str(exc) else "Internal Server Error"
+    return JSONResponse(status_code=500, content={"detail": msg})
+
 
 app.add_middleware(
     CORSMiddleware,
