@@ -39,6 +39,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
   const [dragover, setDragover] = useState(false)
   const [manualText, setManualText] = useState('')
   const [ingesting, setIngesting] = useState(false)
+  const [reindexingId, setReindexingId] = useState<string | null>(null)
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -136,6 +137,7 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
 
   const handleReindex = async (doc: DocumentInfo) => {
     if (doc.type === 'manual') return
+    setReindexingId(doc.id)
     try {
       const res = await fetch(`${API_BASE}/documents/reindex`, {
         method: 'POST',
@@ -150,6 +152,8 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
       await fetchDocuments()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Reindex failed')
+    } finally {
+      setReindexingId(null)
     }
   }
 
@@ -308,9 +312,17 @@ export function DocumentsView({ pin, onLock }: DocumentsViewProps) {
                   <button
                     className="reindex-btn"
                     onClick={() => handleReindex(doc)}
+                    disabled={reindexingId === doc.id}
                     aria-label={`Reindex ${doc.name}`}
                   >
-                    Reindex
+                    {reindexingId === doc.id ? (
+                      <>
+                        <span className="reindex-spinner" aria-hidden />
+                        Reindexing...
+                      </>
+                    ) : (
+                      'Reindex'
+                    )}
                   </button>
                 )}
                 <button

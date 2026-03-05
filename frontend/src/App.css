@@ -542,8 +542,26 @@
   border-radius: 6px;
   font-size: 0.85rem;
 }
-.reindex-btn:hover {
+.reindex-btn:hover:not(:disabled) {
   background: rgba(168, 152, 80, 0.2);
+}
+.reindex-btn:disabled {
+  opacity: 0.8;
+  cursor: wait;
+}
+.reindex-spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: 0.4em;
+  vertical-align: -0.15em;
+  border: 2px solid var(--gauntlet-gold-muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: reindex-spin 0.7s linear infinite;
+}
+@keyframes reindex-spin {
+  to { transform: rotate(360deg); }
 }
 .delete-btn {
   padding: 0.35rem 0.75rem;
