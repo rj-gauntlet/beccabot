@@ -58,11 +58,13 @@ def _get_weather_open_meteo(location: str) -> str:
     if "," in city:
         city = city.split(",")[0].strip()
 
+    headers = {"User-Agent": "BeccaBot/1.0 (Gauntlet AI assistant)"}
     try:
         geo = requests.get(
             "https://geocoding-api.open-meteo.com/v1/search",
             params={"name": city, "count": 1},
-            timeout=5,
+            headers=headers,
+            timeout=10,
         )
         geo.raise_for_status()
         data = geo.json()
@@ -81,7 +83,8 @@ def _get_weather_open_meteo(location: str) -> str:
                 "current": "temperature_2m,relative_humidity_2m,weather_code",
                 "temperature_unit": "fahrenheit",
             },
-            timeout=5,
+            headers=headers,
+            timeout=10,
         )
         r.raise_for_status()
         data = r.json()
@@ -106,11 +109,13 @@ def get_weather(location: str) -> str:
         city = city.split(",")[0].strip()
 
     if OPENWEATHERMAP_API_KEY:
+        headers = {"User-Agent": "BeccaBot/1.0 (Gauntlet AI assistant)"}
         try:
             r = requests.get(
                 "https://api.openweathermap.org/data/2.5/weather",
                 params={"q": city, "appid": OPENWEATHERMAP_API_KEY, "units": "imperial"},
-                timeout=5,
+                headers=headers,
+                timeout=10,
             )
             r.raise_for_status()
             data = r.json()

@@ -53,7 +53,7 @@ export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, loading])
 
   const sendMessage = async () => {
     const text = input.trim()

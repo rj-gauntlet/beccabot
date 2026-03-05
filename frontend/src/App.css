@@ -160,6 +160,9 @@
 
 .main.main-chat {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .main.main-chat > * {
   flex: 1;
@@ -172,7 +175,9 @@
 .chat-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
+  height: 100%;
   background: var(--gauntlet-black-soft);
   border: 1px solid var(--gauntlet-border);
   border-radius: 12px;
@@ -182,6 +187,7 @@
 
 .messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 1rem;
   display: flex;
@@ -256,6 +262,7 @@
 }
 
 .chat-input-row {
+  flex-shrink: 0;
   display: flex;
   gap: 0.5rem;
   padding: 1rem;
