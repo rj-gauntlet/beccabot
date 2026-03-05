@@ -24,7 +24,7 @@ function formatMessageContent(content: string) {
   return parts.length ? parts : content
 }
 
-interface Message {
+export interface Message {
   id: string
   role: 'user' | 'bot'
   content: string
@@ -33,15 +33,15 @@ interface Message {
 
 const API_BASE = '/api'
 
-const WELCOME_MESSAGE: Message = {
-  id: 'welcome',
-  role: 'bot',
-  content:
-    "Hey there! I'm BeccaBot—Rebecca's AI stand-in. Ask me anything about Gauntlet AI's programs, check the weather in Austin, or get directions between housing and the office. Go.",
+interface ChatViewProps {
+  messages: Message[]
+  onMessagesChange: (messages: Message[] | ((prev: Message[]) => Message[])) => void
 }
 
-export function ChatView() {
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE])
+export function ChatView({ messages, onMessagesChange }: ChatViewProps) {
+  const setMessages = (updater: Message[] | ((prev: Message[]) => Message[])) => {
+    onMessagesChange(updater)
+  }
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -153,7 +153,7 @@ export function ChatView() {
         <input
           type="text"
           className="chat-input"
-          placeholder="Ask away. I'm (probably) ready."
+          placeholder="Ask away. I'm ready."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}

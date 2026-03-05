@@ -277,11 +277,11 @@ Only suggest reaching out to Rebecca if the context and tools truly do not have 
             text = choice.message.content or ""
             break
         if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+            messages.append(choice.message)
             for tc in choice.message.tool_calls:
                 name = tc.function.name
                 args = json.loads(tc.function.arguments or "{}")
                 result = _execute_tool(name, args)
-                messages.append(choice.message)
                 messages.append(
                     {
                         "role": "tool",

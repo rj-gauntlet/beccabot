@@ -10,6 +10,34 @@ from app.config import (
     OPENWEATHERMAP_API_KEY,
 )
 
+# Open-Meteo WMO weather codes (simplified)
+_WEATHER_DESCRIPTIONS = {
+    0: "clear sky",
+    1: "mainly clear",
+    2: "partly cloudy",
+    3: "overcast",
+    45: "foggy",
+    48: "depositing rime fog",
+    51: "light drizzle",
+    53: "drizzle",
+    55: "dense drizzle",
+    61: "slight rain",
+    63: "moderate rain",
+    65: "heavy rain",
+    71: "slight snow",
+    73: "moderate snow",
+    75: "heavy snow",
+    77: "snow grains",
+    80: "slight rain showers",
+    81: "rain showers",
+    82: "violent rain showers",
+    85: "slight snow showers",
+    86: "heavy snow showers",
+    95: "thunderstorm",
+    96: "thunderstorm with slight hail",
+    99: "thunderstorm with heavy hail",
+}
+
 LOCATION_ALIASES = {
     "housing": HOUSING_ADDRESS,
     "placemakr": HOUSING_ADDRESS,
@@ -24,32 +52,78 @@ LOCATION_ALIASES = {
 }
 
 
-def get_weather(location: str) -> str:
-    """Get current weather for a city/address. Uses OpenWeatherMap."""
+def _get_weather_open_meteo(location: str) -> str:
+    """Get weather via Open-Meteo (no API key required)."""
     city = LOCATION_ALIASES.get(location.lower().strip(), location)
-    # Extract city name for API (Austin, TX -> Austin)
     if "," in city:
         city = city.split(",")[0].strip()
 
-    if not OPENWEATHERMAP_API_KEY:
-        return "Weather lookup isn't set up yet. Add OPENWEATHERMAP_API_KEY to .env—or just step outside, I hear that works too."
-
     try:
+        geo = requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1},
+            timeout=5,
+        )
+        geo.raise_for_status()
+        data = geo.json()
+        results = data.get("results") or []
+        if not results:
+            return f"Couldn't find a place named '{city}'."
+        lat = results[0]["latitude"]
+        lon = results[0]["longitude"]
+        name = results[0].get("name", city)
+
         r = requests.get(
-            "https://api.openweathermap.org/data/2.5/weather",
-            params={"q": city, "appid": OPENWEATHERMAP_API_KEY, "units": "imperial"},
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,relative_humidity_2m,weather_code",
+                "temperature_unit": "fahrenheit",
+            },
             timeout=5,
         )
         r.raise_for_status()
         data = r.json()
-        temp = data["main"]["temp"]
-        desc = data["weather"][0]["description"]
-        humidity = data["main"].get("humidity", "N/A")
-        return f"{city}: {temp}°F, {desc}. Humidity {humidity}%."
+        cur = data.get("current") or {}
+        temp = cur.get("temperature_2m")
+        humidity = cur.get("relative_humidity_2m", "N/A")
+        code = cur.get("weather_code", 0)
+        desc = _WEATHER_DESCRIPTIONS.get(code, "unknown conditions")
+        if temp is not None:
+            return f"{name}: {temp}°F, {desc}. Humidity {humidity}%."
+        return "Couldn't get current weather. Try again?"
     except requests.RequestException as e:
         return f"Couldn't fetch weather: {e}"
-    except (KeyError, IndexError):
+    except (KeyError, IndexError, TypeError):
         return "Got weird data from the weather service. Try again?"
+
+
+def get_weather(location: str) -> str:
+    """Get current weather for a city/address. Uses OpenWeatherMap if key set, else Open-Meteo."""
+    city = LOCATION_ALIASES.get(location.lower().strip(), location)
+    if "," in city:
+        city = city.split(",")[0].strip()
+
+    if OPENWEATHERMAP_API_KEY:
+        try:
+            r = requests.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={"q": city, "appid": OPENWEATHERMAP_API_KEY, "units": "imperial"},
+                timeout=5,
+            )
+            r.raise_for_status()
+            data = r.json()
+            temp = data["main"]["temp"]
+            desc = data["weather"][0]["description"]
+            humidity = data["main"].get("humidity", "N/A")
+            return f"{city}: {temp}°F, {desc}. Humidity {humidity}%."
+        except requests.RequestException as e:
+            return f"Couldn't fetch weather: {e}"
+        except (KeyError, IndexError):
+            return "Got weird data from the weather service. Try again?"
+
+    return _get_weather_open_meteo(location)
 
 
 def _resolve_location(loc: str) -> str:
