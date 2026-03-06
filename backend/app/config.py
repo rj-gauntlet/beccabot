@@ -7,12 +7,13 @@ load_dotenv()
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent.parent
-UPLOADS_DIR = BASE_DIR / "uploads"
-LINKS_PATH = BASE_DIR / "links.json"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR)))
+UPLOADS_DIR = DATA_DIR / "uploads"
+LINKS_PATH = DATA_DIR / "links.json"
 STATIC_DIR = BASE_DIR / "static"
 
 # Ensure directories exist
-UPLOADS_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # API keys
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

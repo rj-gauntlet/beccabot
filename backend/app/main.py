@@ -142,8 +142,18 @@ def chat(req: ChatRequest):
     if req.history:
         history = [{"role": m.role, "content": m.content} for m in req.history]
 
+    # For short follow-ups (e.g. "What about that?"), augment RAG query with prior context
+    rag_query = question
+    if len(question) < 50 and history:
+        last_user = next(
+            (h["content"] for h in reversed(history) if h.get("role") == "user" and h.get("content")),
+            None,
+        )
+        if last_user:
+            rag_query = f"{last_user} {question}"
+
     try:
-        chunks, source_ids, found = rag.query(question)
+        chunks, source_ids, found = rag.query(rag_query)
         use_fallback = not found
         reply, out_sources = generate_response(
             question, chunks, use_fallback=use_fallback, history=history, source_ids=source_ids
@@ -173,9 +183,18 @@ def chat_stream(req: ChatRequest):
     if req.history:
         history = [{"role": m.role, "content": m.content} for m in req.history]
 
+    rag_query = question
+    if len(question) < 50 and history:
+        last_user = next(
+            (h["content"] for h in reversed(history) if h.get("role") == "user" and h.get("content")),
+            None,
+        )
+        if last_user:
+            rag_query = f"{last_user} {question}"
+
     def generate():
         try:
-            chunks, source_ids, found = rag.query(question)
+            chunks, source_ids, found = rag.query(rag_query)
             use_fallback = not found
             reply, out_sources = generate_response(
                 question, chunks, use_fallback=use_fallback, history=history, source_ids=source_ids

@@ -122,7 +122,7 @@ Set `GOOGLE_SHEETS_CREDENTIALS_PATH` and `GOOGLE_SHEET_ID`. Create a Google Shee
 4. Add environment variables in the Render dashboard: `OPENAI_API_KEY` (required), and optionally `DOCUMENTS_PIN`, `OPENWEATHERMAP_API_KEY`, `HOUSING_ADDRESS`, `OFFICE_ADDRESS`, `REBECCA_EMAIL`.
 5. Deploy. The app will be live at `https://beccabot.onrender.com` (or your chosen name).
 
-> **Note:** On Render's free tier, the filesystem is ephemeral—uploads and RAG store are reset on each deploy. Use a Persistent Disk (paid) for production if you need to retain documents.
+> **Note:** The `render.yaml` includes a Persistent Disk (`/data`) so documents and the RAG store persist across deploys. This requires a paid Render plan (Starter or above). Without a disk, uploads and RAG store are reset on each deploy.
 
 ### OCR for scanned PDFs
 

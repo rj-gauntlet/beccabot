@@ -7,7 +7,14 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
 
+    disk:
+      name: beccabot-data
+      mountPath: /data
+      sizeGB: 1
+
     envVars:
+      - key: DATA_DIR
+        value: /data
       - key: OPENAI_API_KEY
         sync: false
       - key: DOCUMENTS_PIN
